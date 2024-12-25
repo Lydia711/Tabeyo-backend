@@ -1,0 +1,24 @@
+# General
+*.log
+*.env
+*.vs
+*.js.map
+venv
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Node.js
+node_modules/
+dist/
+deps/
+deps_ssr/
+.env
+
+# VSCode
+.vscode/
+
+# Operating System Files
+.DS_Store
+Thumbs.db
