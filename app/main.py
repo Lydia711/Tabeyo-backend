@@ -1,10 +1,19 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import requests
 import os
 import json
 import time
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*", "Referer"],
+)
 
 EDAMAM_APP_ID = os.environ['EDAMAM_APP_ID']
 EDAMAM_API_KEY = os.environ['EDAMAM_API_KEY']
