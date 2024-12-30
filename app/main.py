@@ -4,15 +4,20 @@ import requests
 import os
 import json
 import time
+from models.Recipe import Recipe
 
 app = FastAPI()
 
+origins = [
+    "http://127.0.0.1:8000",
+    "http://localhost:4200"
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*", "Referer"],
+    allow_headers=["*"],
 )
 
 EDAMAM_APP_ID = os.environ['EDAMAM_APP_ID']
@@ -28,9 +33,9 @@ with open(ingredients_json_file_path, "r") as file:
 with open(basic_ingredients_json_file_path, "r") as file:
     basic_ingredients = json.load(file)
 
-
+# To-do: make a get cuisine
+# put these endpoints in a separate file
 def search_recipes(ingredients, only_picked_ingredients, cuisine = "", health = ""):
-
     params = {
         "type": "public",
         "app_id": EDAMAM_APP_ID,
@@ -52,6 +57,7 @@ def search_recipes(ingredients, only_picked_ingredients, cuisine = "", health = 
         excluded_ingredients = [ingredient for ingredient in all_ingredients if ingredient not in ingredients]
         params["excludedIngredient[]"] = excluded_ingredients
 
+    print("naaaah")
     response = requests.get(BASE_URL, params = params)
 
     if response.status_code == 200:
@@ -59,13 +65,22 @@ def search_recipes(ingredients, only_picked_ingredients, cuisine = "", health = 
         recipes = []
 
         for hit in data['hits']:
-            recipe = hit['recipe']
-            recipes.append({
-                "name": recipe['label'],
-                "image": recipe['image'],
-                "url": recipe['url'],
-                "ingredients": recipe['ingredients']
-            })
+            recipe_data = hit['recipe']
+            recipe = Recipe(
+                label = recipe_data['label'],
+                image = recipe_data['image'],
+                url = recipe_data['url'],
+                dietLabels = recipe_data['dietLabels'],
+                portion = recipe_data['yield'],
+                healthLabels = recipe_data['healthLabels'],
+                cautions = recipe_data['cautions'],
+                ingredientLines = recipe_data['ingredientLines'],
+                calories = recipe_data['calories'],
+                totalTime = recipe_data['totalTime'],
+                cuisineType = recipe_data['cuisineType'],
+                totalNutrients = recipe_data['totalNutrients'],
+            )
+            recipes.append(recipe)
 
         return recipes
     else:
@@ -73,13 +88,29 @@ def search_recipes(ingredients, only_picked_ingredients, cuisine = "", health = 
 
 
 
+@app.get("/cuisine")
+def get_recipes(ingredients: str,cuisine:str = "", health:str = ""):
+    try:
+        print("bruh...")
+        ingredients_list = ingredients.split(",")
+        recipes = search_recipes(ingredients_list, False, cuisine, health)
+        print("not strict: ",len(recipes))
+        return {"recipes": recipes}
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return {"error":str(e)}, 500
+
 @app.get("/recipes")
 def get_recipes(ingredients: str,cuisine:str = "", health:str = ""):
-    ingredients_list = ingredients.split(",")
-    recipes = search_recipes(ingredients_list, False, cuisine, health)
-    print("not strict: ",len(recipes))
-    return {"recipes": recipes}
-
+    try:
+        print("bruh...")
+        ingredients_list = ingredients.split(",")
+        recipes = search_recipes(ingredients_list, False, cuisine, health)
+        print("not strict: ",len(recipes))
+        return {"recipes": recipes}
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return {"error":str(e)}, 500
 
 @app.get("/recipes/strict")
 def get_recipes_with_only_given_ingredients(ingredients: str,cuisine:str = "", health:str = ""):
@@ -164,9 +195,7 @@ def add_ingredients_to_json():
 
 
 #add_ingredients_to_json()
-
 keywords = "coconut, shrimp, coconut milk"
-print("wassup")
 #get_recipes_with_only_given_ingredients(keywords,"","" )
 #get_recipes(keywords,"","" )
 
