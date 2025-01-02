@@ -3,7 +3,7 @@
 *.env
 *.vs
 *.js.map
-venv
+.venv
 
 # Python
 __pycache__/

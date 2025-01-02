@@ -5,6 +5,7 @@ import os
 import json
 import time
 from models.Recipe import Recipe
+import deletelater
 
 app = FastAPI()
 
@@ -20,8 +21,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-EDAMAM_APP_ID = os.environ['EDAMAM_APP_ID']
-EDAMAM_API_KEY = os.environ['EDAMAM_API_KEY']
+EDAMAM_APP_ID = deletelater.EDAMAM_APP_ID #os.environ['EDAMAM_APP_ID']
+EDAMAM_API_KEY = deletelater.EDAMAM_API_KEY #os.environ['EDAMAM_API_KEY']
 BASE_URL = "https://api.edamam.com/api/recipes/v2"
 
 ingredients_json_file_path = "ingredients.json"
@@ -32,8 +33,7 @@ with open(ingredients_json_file_path, "r") as file:
 
 with open(basic_ingredients_json_file_path, "r") as file:
     basic_ingredients = json.load(file)
-
-# To-do: make a get cuisine
+    
 # put these endpoints in a separate file
 def search_recipes(ingredients, only_picked_ingredients, cuisine = "", health = ""):
     params = {
@@ -87,23 +87,9 @@ def search_recipes(ingredients, only_picked_ingredients, cuisine = "", health = 
         raise HTTPException(status_code=400, detail="Error fetching recipes")
 
 
-
-@app.get("/cuisine")
-def get_recipes(ingredients: str,cuisine:str = "", health:str = ""):
-    try:
-        print("bruh...")
-        ingredients_list = ingredients.split(",")
-        recipes = search_recipes(ingredients_list, False, cuisine, health)
-        print("not strict: ",len(recipes))
-        return {"recipes": recipes}
-    except Exception as e:
-        print(f"Error occurred: {e}")
-        return {"error":str(e)}, 500
-
 @app.get("/recipes")
 def get_recipes(ingredients: str,cuisine:str = "", health:str = ""):
     try:
-        print("bruh...")
         ingredients_list = ingredients.split(",")
         recipes = search_recipes(ingredients_list, False, cuisine, health)
         print("not strict: ",len(recipes))
@@ -111,13 +97,20 @@ def get_recipes(ingredients: str,cuisine:str = "", health:str = ""):
     except Exception as e:
         print(f"Error occurred: {e}")
         return {"error":str(e)}, 500
+        
+
 
 @app.get("/recipes/strict")
 def get_recipes_with_only_given_ingredients(ingredients: str,cuisine:str = "", health:str = ""):
-    ingredients_list = ingredients.split(",")
-    recipes = search_recipes(ingredients_list, True, cuisine, health)
-    print("strict: ",len(recipes))
-    return {"recipes": recipes}
+    try:
+        ingredients_list = ingredients.split(",")
+        recipes = search_recipes(ingredients_list, True, cuisine, health)
+        print("strict: ",len(recipes))
+        return {"recipes": recipes}
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return {"error":str(e)}, 500
+        
 
 
 def save_ingredients_to_json(ingredients, filename="ingredients.json"):
