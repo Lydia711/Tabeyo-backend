@@ -35,7 +35,9 @@ with open(basic_ingredients_json_file_path, "r") as file:
     basic_ingredients = json.load(file)
     
 # put these endpoints in a separate file
-def search_recipes(ingredients, only_picked_ingredients, cuisine = "", health = ""):
+def search_recipes(ingredients, strict_search, cuisine = "", health = ""):
+
+    print("we doing unstrict")
     params = {
         "type": "public",
         "app_id": EDAMAM_APP_ID,
@@ -48,24 +50,17 @@ def search_recipes(ingredients, only_picked_ingredients, cuisine = "", health = 
     if health:
         params["health"] = health
 
-
-    if only_picked_ingredients:
-        print("yooooo we here thooo")
-        params["allowedIngredient[]"] = ingredients
-        params["q"] = ""
-
-        excluded_ingredients = [ingredient for ingredient in all_ingredients if ingredient not in ingredients]
-        params["excludedIngredient[]"] = excluded_ingredients
-
-    print("naaaah")
     response = requests.get(BASE_URL, params = params)
 
     if response.status_code == 200:
         data = response.json()
         recipes = []
 
-        for hit in data['hits']:
+        filtered_recipes = []
+
+        for hit in data.get('hits', []):
             recipe_data = hit['recipe']
+
             recipe = Recipe(
                 label = recipe_data['label'],
                 image = recipe_data['image'],
@@ -80,8 +75,19 @@ def search_recipes(ingredients, only_picked_ingredients, cuisine = "", health = 
                 cuisineType = recipe_data['cuisineType'],
                 totalNutrients = recipe_data['totalNutrients'],
             )
-            recipes.append(recipe)
 
+            if strict_search:
+                print("we doing strict")
+                recipe_ingredients = {ingredient["text"].lower() for ingredient in recipe_data.get("ingredients",[])}
+                search_ingredients = {ingredient.lower() for ingredient in ingredients}
+
+                if recipe_ingredients == search_ingredients:
+                    filtered_recipes.append(recipe)
+            else:
+                recipes.append(recipe)
+
+        if strict_search:
+            return filtered_recipes
         return recipes
     else:
         raise HTTPException(status_code=400, detail="Error fetching recipes")
@@ -89,6 +95,7 @@ def search_recipes(ingredients, only_picked_ingredients, cuisine = "", health = 
 
 @app.get("/recipes")
 def get_recipes(ingredients: str,cuisine:str = "", health:str = ""):
+    print("not strict")
     try:
         ingredients_list = ingredients.split(",")
         recipes = search_recipes(ingredients_list, False, cuisine, health)
@@ -102,6 +109,7 @@ def get_recipes(ingredients: str,cuisine:str = "", health:str = ""):
 
 @app.get("/recipes/strict")
 def get_recipes_with_only_given_ingredients(ingredients: str,cuisine:str = "", health:str = ""):
+    print("strict")
     try:
         ingredients_list = ingredients.split(",")
         recipes = search_recipes(ingredients_list, True, cuisine, health)
