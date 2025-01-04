@@ -6,6 +6,8 @@ import json
 import time
 from models.Recipe import Recipe
 import deletelater
+from difflib import SequenceMatcher
+
 
 app = FastAPI()
 
@@ -25,19 +27,10 @@ EDAMAM_APP_ID = deletelater.EDAMAM_APP_ID #os.environ['EDAMAM_APP_ID']
 EDAMAM_API_KEY = deletelater.EDAMAM_API_KEY #os.environ['EDAMAM_API_KEY']
 BASE_URL = "https://api.edamam.com/api/recipes/v2"
 
-ingredients_json_file_path = "ingredients.json"
-basic_ingredients_json_file_path = "ingredients.json"
-
-with open(ingredients_json_file_path, "r") as file:
-    all_ingredients = json.load(file)
-
-with open(basic_ingredients_json_file_path, "r") as file:
-    basic_ingredients = json.load(file)
     
 # put these endpoints in a separate file
 def search_recipes(ingredients, strict_search, cuisine = "", health = ""):
 
-    print("we doing unstrict")
     params = {
         "type": "public",
         "app_id": EDAMAM_APP_ID,
@@ -77,21 +70,33 @@ def search_recipes(ingredients, strict_search, cuisine = "", health = ""):
             )
 
             if strict_search:
-                print("we doing strict")
-                recipe_ingredients = {ingredient["text"].lower() for ingredient in recipe_data.get("ingredients",[])}
+                recipe_ingredients = {ingredient["food"].lower() for ingredient in recipe_data.get("ingredients",[])}
                 search_ingredients = {ingredient.lower() for ingredient in ingredients}
 
-                if recipe_ingredients == search_ingredients:
+                find_missing_ingredients(recipe, recipe_ingredients, search_ingredients)
+                print("missing ingredients number: ",len(recipe.missingIngredients))
+                print(recipe.missingIngredients)
+                if len(recipe.missingIngredients) <= 4:
                     filtered_recipes.append(recipe)
             else:
                 recipes.append(recipe)
 
         if strict_search:
+            print(filtered_recipes)
             return filtered_recipes
         return recipes
     else:
         raise HTTPException(status_code=400, detail="Error fetching recipes")
 
+def find_missing_ingredients(recipe, recipe_ingredients, search_ingredients, similarity_threshold=0.7):
+    for recipe_ingredient in recipe_ingredients:
+        match = False
+        for search_ingredient in search_ingredients:
+            similarity = SequenceMatcher(None, search_ingredient.lower(), recipe_ingredient.lower()).ratio()
+            if similarity >= similarity_threshold:
+                match = True
+        if not match:
+            recipe.missingIngredients.append(recipe_ingredient)
 
 @app.get("/recipes")
 def get_recipes(ingredients: str,cuisine:str = "", health:str = ""):
@@ -99,7 +104,6 @@ def get_recipes(ingredients: str,cuisine:str = "", health:str = ""):
     try:
         ingredients_list = ingredients.split(",")
         recipes = search_recipes(ingredients_list, False, cuisine, health)
-        print("not strict: ",len(recipes))
         return {"recipes": recipes}
     except Exception as e:
         print(f"Error occurred: {e}")
@@ -175,10 +179,18 @@ def load_existing_ingredients(filename="ingredients.json"):
     else:
         return set()
 
-        
+def load_basic_ingredients(filename="basic_ingredients.json"):
+    if os.path.exists(filename):
+        with open(filename, "r") as file:
+            return set(json.load(file))
+    else:
+        return set()
+
+
 
 #all_ingredients = set()
 all_ingredients = load_existing_ingredients()
+basic_ingredients = load_basic_ingredients()
 
 
 def add_ingredients_to_json():
@@ -202,3 +214,5 @@ keywords = "coconut, shrimp, coconut milk"
 
 if __name__ == "__main__":
     app.run(debug=True)
+
+

@@ -12,3 +12,4 @@ class Recipe:
 		self.totalTime = totalTime # time in minutes
 		self.cuisineType = cuisineType
 		self.totalNutrients = totalNutrients # list of different nutritional facts. e.g: FAT, CHOCDF(carbs), PROCNT(protein)
+		self.missingIngredients = []
