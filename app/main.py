@@ -70,27 +70,33 @@ def search_recipes(ingredients, strict_search, cuisine = "", health = ""):
             )
 
             if strict_search:
-                print("we doing strict")
                 recipe_ingredients = {ingredient["food"].lower() for ingredient in recipe_data.get("ingredients",[])}
                 search_ingredients = {ingredient.lower() for ingredient in ingredients}
 
-                print(recipe_ingredients)
-                print(search_ingredients)
-
-                #if recipe_ingredients.issubset(search_ingredients):
-                #    filtered_recipes.append(recipe)
-                if is_fuzzy_subset(recipe_ingredients, search_ingredients):
+                find_missing_ingredients(recipe, recipe_ingredients, search_ingredients)
+                print("missing ingredients number: ",len(recipe.missingIngredients))
+                print(recipe.missingIngredients)
+                if len(recipe.missingIngredients) <= 4:
                     filtered_recipes.append(recipe)
-                    print("this recipe was added: ", recipe_ingredients)
             else:
                 recipes.append(recipe)
 
         if strict_search:
+            print(filtered_recipes)
             return filtered_recipes
         return recipes
     else:
         raise HTTPException(status_code=400, detail="Error fetching recipes")
 
+def find_missing_ingredients(recipe, recipe_ingredients, search_ingredients, similarity_threshold=0.7):
+    for recipe_ingredient in recipe_ingredients:
+        match = False
+        for search_ingredient in search_ingredients:
+            similarity = SequenceMatcher(None, search_ingredient.lower(), recipe_ingredient.lower()).ratio()
+            if similarity >= similarity_threshold:
+                match = True
+        if not match:
+            recipe.missingIngredients.append(recipe_ingredient)
 
 @app.get("/recipes")
 def get_recipes(ingredients: str,cuisine:str = "", health:str = ""):
@@ -98,7 +104,6 @@ def get_recipes(ingredients: str,cuisine:str = "", health:str = ""):
     try:
         ingredients_list = ingredients.split(",")
         recipes = search_recipes(ingredients_list, False, cuisine, health)
-        print("not strict: ",len(recipes))
         return {"recipes": recipes}
     except Exception as e:
         print(f"Error occurred: {e}")
@@ -211,20 +216,3 @@ if __name__ == "__main__":
     app.run(debug=True)
 
 
-
-def is_fuzzy_subset(recipe_ingredients, search_ingredients, similarity_threshold=0.6):
-    missing_ingredients = []
-    for recipe_ingredient in recipe_ingredients:
-        match = False
-        for search_ingredient in search_ingredients:
-            similarity = SequenceMatcher(None, search_ingredient.lower(), recipe_ingredient.lower()).ratio()
-            print("comparing => ",search_ingredient, " and ", recipe_ingredient)
-            if similarity >= similarity_threshold:
-                print("IT'S A MATCH")
-                match = True
-                break
-        if not match:
-            missing_ingredients.append(recipe_ingredient)
-            return False
-    print("missing ingredients: ", missing_ingredients)
-    return True
