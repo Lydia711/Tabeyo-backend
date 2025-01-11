@@ -5,7 +5,6 @@ import os
 import json
 import time
 from models.Recipe import Recipe
-import deletelater
 from difflib import SequenceMatcher
 
 
@@ -23,9 +22,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-EDAMAM_APP_ID = deletelater.EDAMAM_APP_ID #os.environ['EDAMAM_APP_ID']
-EDAMAM_API_KEY = deletelater.EDAMAM_API_KEY #os.environ['EDAMAM_API_KEY']
+EDAMAM_APP_ID = os.environ['EDAMAM_APP_ID']
+EDAMAM_API_KEY = os.environ['EDAMAM_API_KEY']
 BASE_URL = "https://api.edamam.com/api/recipes/v2"
+allowed_categories = {"water", "sugars", "Condiments and sauces", "oils"}
 
     
 # put these endpoints in a separate file
@@ -59,29 +59,30 @@ def search_recipes(ingredients, strict_search, cuisine = "", health = ""):
                 image = recipe_data['image'],
                 url = recipe_data['url'],
                 dietLabels = recipe_data['dietLabels'],
-                portion = recipe_data['yield'],
+                portions = recipe_data['yield'],
                 healthLabels = recipe_data['healthLabels'],
                 cautions = recipe_data['cautions'],
                 ingredientLines = recipe_data['ingredientLines'],
-                calories = recipe_data['calories'],
+                calories = round(recipe_data['calories']),
                 totalTime = recipe_data['totalTime'],
                 cuisineType = recipe_data['cuisineType'],
                 totalNutrients = recipe_data['totalNutrients'],
             )
 
             if strict_search:
-                recipe_ingredients = {ingredient["food"].lower() for ingredient in recipe_data.get("ingredients",[])}
+                recipe_ingredients = {ingredient["food"].lower() for ingredient in recipe_data.get("ingredients",[]) if ingredient["foodCategory"] not in allowed_categories}
                 search_ingredients = {ingredient.lower() for ingredient in ingredients}
 
                 find_missing_ingredients(recipe, recipe_ingredients, search_ingredients)
-                print("missing ingredients number: ",len(recipe.missingIngredients))
-                print(recipe.missingIngredients)
                 if len(recipe.missingIngredients) <= 4:
                     filtered_recipes.append(recipe)
+                else:
+                    print("too many missing ingredients: ", len(recipe.missingIngredients),", ", recipe.missingIngredients)
             else:
                 recipes.append(recipe)
 
         if strict_search:
+            print("number of filtered recipes: ",len(filtered_recipes))
             print(filtered_recipes)
             return filtered_recipes
         return recipes
@@ -100,10 +101,10 @@ def find_missing_ingredients(recipe, recipe_ingredients, search_ingredients, sim
 
 @app.get("/recipes")
 def get_recipes(ingredients: str,cuisine:str = "", health:str = ""):
-    print("not strict")
     try:
         ingredients_list = ingredients.split(",")
         recipes = search_recipes(ingredients_list, False, cuisine, health)
+        print("not strict: ",len(recipes))
         return {"recipes": recipes}
     except Exception as e:
         print(f"Error occurred: {e}")
@@ -113,7 +114,6 @@ def get_recipes(ingredients: str,cuisine:str = "", health:str = ""):
 
 @app.get("/recipes/strict")
 def get_recipes_with_only_given_ingredients(ingredients: str,cuisine:str = "", health:str = ""):
-    print("strict")
     try:
         ingredients_list = ingredients.split(",")
         recipes = search_recipes(ingredients_list, True, cuisine, health)
