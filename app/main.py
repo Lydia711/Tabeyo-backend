@@ -5,7 +5,8 @@ import os
 import json
 import time
 from models.Recipe import Recipe
-import deletelater
+from difflib import SequenceMatcher
+
 
 app = FastAPI()
 
@@ -21,21 +22,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-EDAMAM_APP_ID = deletelater.EDAMAM_APP_ID #os.environ['EDAMAM_APP_ID']
-EDAMAM_API_KEY = deletelater.EDAMAM_API_KEY #os.environ['EDAMAM_API_KEY']
+EDAMAM_APP_ID = os.environ['EDAMAM_APP_ID']
+EDAMAM_API_KEY = os.environ['EDAMAM_API_KEY']
 BASE_URL = "https://api.edamam.com/api/recipes/v2"
+allowed_categories = {"water", "sugars", "Condiments and sauces", "oils"}
 
-ingredients_json_file_path = "ingredients.json"
-basic_ingredients_json_file_path = "ingredients.json"
-
-with open(ingredients_json_file_path, "r") as file:
-    all_ingredients = json.load(file)
-
-with open(basic_ingredients_json_file_path, "r") as file:
-    basic_ingredients = json.load(file)
     
 # put these endpoints in a separate file
-def search_recipes(ingredients, only_picked_ingredients, cuisine = "", health = ""):
+def search_recipes(ingredients, strict_search, cuisine = "", health = ""):
+
     params = {
         "type": "public",
         "app_id": EDAMAM_APP_ID,
@@ -48,44 +43,61 @@ def search_recipes(ingredients, only_picked_ingredients, cuisine = "", health = 
     if health:
         params["health"] = health
 
-
-    if only_picked_ingredients:
-        print("yooooo we here thooo")
-        params["allowedIngredient[]"] = ingredients
-        params["q"] = ""
-
-        excluded_ingredients = [ingredient for ingredient in all_ingredients if ingredient not in ingredients]
-        params["excludedIngredient[]"] = excluded_ingredients
-
-    print("naaaah")
     response = requests.get(BASE_URL, params = params)
 
     if response.status_code == 200:
         data = response.json()
         recipes = []
 
-        for hit in data['hits']:
+        filtered_recipes = []
+
+        for hit in data.get('hits', []):
             recipe_data = hit['recipe']
+
             recipe = Recipe(
                 label = recipe_data['label'],
                 image = recipe_data['image'],
                 url = recipe_data['url'],
                 dietLabels = recipe_data['dietLabels'],
-                portion = recipe_data['yield'],
+                portions = recipe_data['yield'],
                 healthLabels = recipe_data['healthLabels'],
                 cautions = recipe_data['cautions'],
                 ingredientLines = recipe_data['ingredientLines'],
-                calories = recipe_data['calories'],
+                calories = round(recipe_data['calories']),
                 totalTime = recipe_data['totalTime'],
                 cuisineType = recipe_data['cuisineType'],
                 totalNutrients = recipe_data['totalNutrients'],
             )
-            recipes.append(recipe)
 
+            if strict_search:
+                recipe_ingredients = {(ingredient["food"].lower(), ingredient["text"]) for ingredient in recipe_data.get("ingredients",[]) if ingredient["foodCategory"] not in allowed_categories}
+                search_ingredients = {ingredient.lower() for ingredient in ingredients}
+
+                find_missing_ingredients(recipe, recipe_ingredients, search_ingredients)
+                if len(recipe.missingIngredients) <= 4:
+                    filtered_recipes.append(recipe)
+                    print("NOT too many missing ingredients: ", len(recipe.missingIngredients),", ", recipe.missingIngredients)
+                else:
+                    print("too many missing ingredients: ", len(recipe.missingIngredients),", ", recipe.missingIngredients)
+            else:
+                recipes.append(recipe)
+
+        if strict_search:
+            print("number of filtered recipes: ",len(filtered_recipes))
+            return filtered_recipes
         return recipes
     else:
         raise HTTPException(status_code=400, detail="Error fetching recipes")
 
+def find_missing_ingredients(recipe, recipe_ingredients, search_ingredients, similarity_threshold=0.7):
+    for recipe_ingredient, ingredient_text in recipe_ingredients:
+        match = False
+        for search_ingredient in search_ingredients:
+            similarity = SequenceMatcher(None, search_ingredient.lower(), recipe_ingredient.lower()).ratio()
+            if similarity >= similarity_threshold:
+                match = True
+        if not match:
+            recipe.missingIngredients.append(ingredient_text)
 
 @app.get("/recipes")
 def get_recipes(ingredients: str,cuisine:str = "", health:str = ""):
@@ -167,10 +179,18 @@ def load_existing_ingredients(filename="ingredients.json"):
     else:
         return set()
 
-        
+def load_basic_ingredients(filename="basic_ingredients.json"):
+    if os.path.exists(filename):
+        with open(filename, "r") as file:
+            return set(json.load(file))
+    else:
+        return set()
+
+
 
 #all_ingredients = set()
 all_ingredients = load_existing_ingredients()
+basic_ingredients = load_basic_ingredients()
 
 
 def add_ingredients_to_json():
@@ -194,3 +214,5 @@ keywords = "coconut, shrimp, coconut milk"
 
 if __name__ == "__main__":
     app.run(debug=True)
+
+
