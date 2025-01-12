@@ -70,12 +70,13 @@ def search_recipes(ingredients, strict_search, cuisine = "", health = ""):
             )
 
             if strict_search:
-                recipe_ingredients = {ingredient["food"].lower() for ingredient in recipe_data.get("ingredients",[]) if ingredient["foodCategory"] not in allowed_categories}
+                recipe_ingredients = {(ingredient["food"].lower(), ingredient["text"]) for ingredient in recipe_data.get("ingredients",[]) if ingredient["foodCategory"] not in allowed_categories}
                 search_ingredients = {ingredient.lower() for ingredient in ingredients}
 
                 find_missing_ingredients(recipe, recipe_ingredients, search_ingredients)
                 if len(recipe.missingIngredients) <= 4:
                     filtered_recipes.append(recipe)
+                    print("NOT too many missing ingredients: ", len(recipe.missingIngredients),", ", recipe.missingIngredients)
                 else:
                     print("too many missing ingredients: ", len(recipe.missingIngredients),", ", recipe.missingIngredients)
             else:
@@ -83,21 +84,20 @@ def search_recipes(ingredients, strict_search, cuisine = "", health = ""):
 
         if strict_search:
             print("number of filtered recipes: ",len(filtered_recipes))
-            print(filtered_recipes)
             return filtered_recipes
         return recipes
     else:
         raise HTTPException(status_code=400, detail="Error fetching recipes")
 
 def find_missing_ingredients(recipe, recipe_ingredients, search_ingredients, similarity_threshold=0.7):
-    for recipe_ingredient in recipe_ingredients:
+    for recipe_ingredient, ingredient_text in recipe_ingredients:
         match = False
         for search_ingredient in search_ingredients:
             similarity = SequenceMatcher(None, search_ingredient.lower(), recipe_ingredient.lower()).ratio()
             if similarity >= similarity_threshold:
                 match = True
         if not match:
-            recipe.missingIngredients.append(recipe_ingredient)
+            recipe.missingIngredients.append(ingredient_text)
 
 @app.get("/recipes")
 def get_recipes(ingredients: str,cuisine:str = "", health:str = ""):
