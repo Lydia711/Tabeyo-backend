@@ -41,7 +41,7 @@ def search_recipes(ingredients, strict_search, cuisine = "", health = ""):
     if cuisine:
         params["cuisineType"] = cuisine
     if health:
-        params["health"] = health
+        params["health"] = health.split(',')
 
     response = requests.get(BASE_URL, params = params)
 
