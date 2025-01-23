@@ -3,6 +3,7 @@
 *.env
 *.vs
 *.js.map
+.venv
 venv
 
 # Python
