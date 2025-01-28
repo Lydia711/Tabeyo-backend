@@ -6,9 +6,10 @@ import json
 import time
 from models.Recipe import Recipe
 from difflib import SequenceMatcher
-
+from dotenv import load_dotenv
 
 app = FastAPI()
+load_dotenv()
 
 origins = [
     "http://127.0.0.1:8000",
@@ -22,13 +23,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-EDAMAM_APP_ID = os.environ['EDAMAM_APP_ID']
-EDAMAM_API_KEY = os.environ['EDAMAM_API_KEY']
+EDAMAM_APP_ID = os.getenv('EDAMAM_APP_ID')
+EDAMAM_API_KEY = os.getenv('EDAMAM_API_KEY')
+
+if not EDAMAM_APP_ID or not EDAMAM_API_KEY:
+    raise ValueError("Missing Edamam credentials! Please set EDAMAM_APP_ID and EDAMAM_API_KEY in the .env file.")
+
 BASE_URL = "https://api.edamam.com/api/recipes/v2"
 allowed_categories = {"water", "sugars", "Condiments and sauces", "oils"}
 
-    
-# put these endpoints in a separate file
+
 def search_recipes(ingredients, strict_search, cuisine = "", health = ""):
 
     params = {
@@ -76,9 +80,6 @@ def search_recipes(ingredients, strict_search, cuisine = "", health = ""):
                 find_missing_ingredients(recipe, recipe_ingredients, search_ingredients)
                 if len(recipe.missingIngredients) <= 4:
                     filtered_recipes.append(recipe)
-                    print("NOT too many missing ingredients: ", len(recipe.missingIngredients),", ", recipe.missingIngredients)
-                else:
-                    print("too many missing ingredients: ", len(recipe.missingIngredients),", ", recipe.missingIngredients)
             else:
                 recipes.append(recipe)
 
@@ -104,7 +105,6 @@ def get_recipes(ingredients: str,cuisine:str = "", health:str = ""):
     try:
         ingredients_list = ingredients.split(",")
         recipes = search_recipes(ingredients_list, False, cuisine, health)
-        print("not strict: ",len(recipes))
         return {"recipes": recipes}
     except Exception as e:
         print(f"Error occurred: {e}")
@@ -117,19 +117,11 @@ def get_recipes_with_only_given_ingredients(ingredients: str,cuisine:str = "", h
     try:
         ingredients_list = ingredients.split(",")
         recipes = search_recipes(ingredients_list, True, cuisine, health)
-        print("strict: ",len(recipes))
         return {"recipes": recipes}
     except Exception as e:
         print(f"Error occurred: {e}")
         return {"error":str(e)}, 500
-        
-
-
-def save_ingredients_to_json(ingredients, filename="ingredients.json"):
-    with open(filename, "w") as f:
-        json.dump(list(ingredients), f, indent=4)
-
-
+    
 
 def fetch_recipes(keyword, max_pages=1):
     ingredients_set = set()
@@ -143,16 +135,9 @@ def fetch_recipes(keyword, max_pages=1):
 
             for hit in data['hits']:
                 for ingredient in hit['recipe']['ingredients']:
-
-                    #food = ingredient.get('food')
-                    #food_category = ingreident.get('foodCategory')
-
-                    #if food and food_category:
-                        #ingredients_set.add((food.lower(), food_category))
                     
                     if(ingredient.get('foodCategory') not in ['Condiments and sauces', 'Oils', 'water', 'sugars']):
                         ingredients_set.add(ingredient['food'])
-
 
             url = data.get('_links', {}).get('next', {}).get('href')
             page += 1
@@ -163,56 +148,5 @@ def fetch_recipes(keyword, max_pages=1):
     return ingredients_set
 
 
-
-#all_ingredients = set()
-#for keyword in keywords:
-#    print(f"Fetching recipes for keyword {keyword}")
-#    ingredients = fetch_recipes(keyword)
-#    all_ingredients.update([ingredient.lower() for ingredient in ingredients])
-
-#save_ingredients_to_json(all_ingredients)
-
-def load_existing_ingredients(filename="ingredients.json"):
-    if os.path.exists(filename):
-        with open(filename, "r") as file:
-            return set(json.load(file))
-    else:
-        return set()
-
-def load_basic_ingredients(filename="basic_ingredients.json"):
-    if os.path.exists(filename):
-        with open(filename, "r") as file:
-            return set(json.load(file))
-    else:
-        return set()
-
-
-
-#all_ingredients = set()
-all_ingredients = load_existing_ingredients()
-basic_ingredients = load_basic_ingredients()
-
-
-def add_ingredients_to_json():
-    keywords = ["chicken", "beef", "pork"]
-    for keyword in keywords:
-        print(f"Fetching recipes for keyword {keyword}")
-        ingredients = fetch_recipes(keyword)
-        #all_ingredients.update([ingredient['text'].lower() for ingredient in ingredients if ingredient.get('foodCategory') not in ["Condiments and sauces", "water"]])
-
-        all_ingredients.update([ingredient.lower() for ingredient in ingredients])
-
-        print("\nkeyword sent\n")
-        time.sleep(30)
-    save_ingredients_to_json(all_ingredients)
-
-
-#add_ingredients_to_json()
-keywords = "coconut, shrimp, coconut milk"
-#get_recipes_with_only_given_ingredients(keywords,"","" )
-#get_recipes(keywords,"","" )
-
 if __name__ == "__main__":
     app.run(debug=True)
-
-
